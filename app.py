@@ -3,7 +3,7 @@ import os
 from flask import request, jsonify
 from flask.views import MethodView
 from sqlalchemy import Column, DateTime, Integer, create_engine, String, func
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -57,15 +57,13 @@ def handle_error(error):
 
 class AdView(MethodView):
 
-    def get(self):
+    def get(self, adv_id=None):
         with Session() as session:
-            ads = session.query(AdModel).all()
+            if adv_id is None:
+                ads = session.query(AdModel).all()
+            else:
+                ads = session.query(AdModel).filter(AdModel.id==adv_id)
             return jsonify([ad.to_dict() for ad in ads])
-
-    def get_ad(self, ad_id):
-        with Session() as session:
-            ads = session.query(AdModel).filter_by(id=ad_id).one()
-        return jsonify(ads.to_dict())
 
     def post(self):
         new_ad_data = request.json
@@ -77,14 +75,19 @@ class AdView(MethodView):
                 'id': new_ad.id,
                 'header': new_ad.header,
                     })
-    #
-    def delete(self, ad_id):
+
+    def delete(self, adv_id):
         with Session() as session:
-            ads = session.query(AdModel).filter_by(id=ad_id).one()
-            session.delete(ads)
-            session.commit()
-        return {'204': 'no content'}
+            try:
+                ads = session.query(AdModel).filter_by(id=adv_id).one()
+                session.delete(ads)
+                session.commit()
+                return f'Объявление с id = {adv_id} удалено из базы данных'
+            except NoResultFound:
+                return f'Объявление с id = {adv_id} не найдено в базе данных'
+
+
 
 app.add_url_rule('/ad/', view_func=AdView.as_view('create_ad'), methods=['POST'])
 app.add_url_rule('/ad/', view_func=AdView.as_view('get_all'), methods=['GET'])
-app.add_url_rule('/ad/<int:ad_id>', view_func=AdView.as_view('get_ad'), methods=['GET', 'DELETE'])
+app.add_url_rule('/ad/<int:adv_id>', view_func=AdView.as_view('get_ad'), methods=['GET', 'DELETE'])
